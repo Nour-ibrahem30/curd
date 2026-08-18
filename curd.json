@@ -1,0 +1,209 @@
+const fs = require("fs").promises;
+const express = require("express");
+
+const app = express();
+
+const PORT = 3000;
+const filePath = "./products.json";
+
+app.use(express.json());
+
+async function checkFile() {
+    try {
+        await fs.access(filePath);
+    } catch {
+        await fs.writeFile(filePath,
+        "[]");
+    }
+}
+
+async function getAllProducts() {
+    const data = await fs.readFile(filePath,
+    "utf8");
+
+    return JSON.parse(data);
+}
+
+async function getProductById(id) {
+    const products = await getAllProducts();
+
+    return products.find(product => product.id === id);
+}
+
+async function createProduct(product) {
+    const products = await getAllProducts();
+
+    products.push(product);
+
+    await fs.writeFile(
+        filePath,
+        JSON.stringify(products,
+    null,
+    2)
+    );
+
+    return product;
+}
+
+async function updateProduct(id, updatedProduct) {
+    const products = await getAllProducts();
+
+    const index = products.findIndex(
+        product => product.id === id
+    );
+
+    if (index === -1) {
+        return null;
+    }
+
+    products[index
+    ] = {
+        id,
+        ...updatedProduct
+    };
+
+    await fs.writeFile(
+        filePath,
+        JSON.stringify(products,
+    null,
+    2)
+    );
+
+    return products[index
+    ];
+}
+
+async function deleteProduct(id) {
+    const products = await getAllProducts();
+
+    const index = products.findIndex(
+        product => product.id === id
+    );
+
+    if (index === -1) {
+        return null;
+    }
+
+    const deletedProduct = products[index
+    ];
+
+    products.splice(index,
+    1);
+
+    await fs.writeFile(
+        filePath,
+        JSON.stringify(products,
+    null,
+    2)
+    );
+
+    return deletedProduct;
+}
+
+app.get("/api/products", async (req, res) => {
+    try {
+        const products = await getAllProducts();
+
+        res.json(products);
+    } catch (error) {
+        res.status(500).json({
+            message: "Error reading products"
+        });
+    }
+});
+
+app.get("/api/products/:id", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        const product = await getProductById(id);
+
+        if (!product) {
+            return res.status(404).json({
+                message: "Product not found"
+            });
+        }
+
+        res.json(product);
+    } catch (error) {
+        res.status(500).json({
+            message: "Error reading product"
+        });
+    }
+});
+
+app.post("/api/products", async (req, res) => {
+    try {
+        const product = await createProduct(req.body);
+
+        res.status(201).json({
+            message: "Product created",
+            product
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Error creating product"
+        });
+    }
+});
+
+app.put("/api/products/:id", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        const product = await updateProduct(
+            id,
+            req.body
+        );
+
+        if (!product) {
+            return res.status(404).json({
+                message: "Product not found"
+            });
+        }
+
+        res.json({
+            message: "Product updated",
+            product
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Error updating product"
+        });
+    }
+});
+
+app.delete("/api/products/:id", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        const product = await deleteProduct(id);
+
+        if (!product) {
+            return res.status(404).json({
+                message: "Product not found"
+            });
+        }
+
+        res.json({
+            message: "Product deleted",
+            product
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Error deleting product"
+        });
+    }
+});
+
+async function startServer() {
+    await checkFile();
+
+    app.listen(PORT, () => {
+        console.log(
+            `Server running on http: //localhost:${PORT}`
+        );
+    });
+}
+
+startServer();
